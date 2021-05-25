@@ -37,6 +37,7 @@ packages:
 #
 extra-deps:
  - unbeliever-0.10.0.8@sha256:549b8387592c2b54794148e0daaedaa1c04d4d5af62aae3aaf45dec2f5600e38,3879
+ - brick-0.62@sha256:363238020d598abb08182b8a0a910f48d1517955611f416bb6bb8645c7e80ee8,16531
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a

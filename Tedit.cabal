@@ -16,12 +16,18 @@ extra-source-files:  README.md
 executable Tedit
   hs-source-dirs:      src
   main-is:             Main.hs
+  ghc-options:         -threaded
   default-language:    Haskell2010
+  other-modules:       Text
   build-depends:       base >= 4.7 && < 5
-                     , ansi-terminal
                      , fingertree
                      , unbeliever
                      , core-text
+                     , brick >= 0.61
                      , containers
-  other-modules:     
-                       Text
+                     , linear
+                     , microlens
+                     , microlens-th
+                     , random
+                     , vty
+                     , directory

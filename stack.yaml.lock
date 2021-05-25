@@ -11,6 +11,13 @@ packages:
       sha256: 4231c5c2b689b50f193ca0187321c1b25ce7a798091fc0a22ff17a9c9e5de2a3
   original:
     hackage: unbeliever-0.10.0.8@sha256:549b8387592c2b54794148e0daaedaa1c04d4d5af62aae3aaf45dec2f5600e38,3879
+- completed:
+    hackage: brick-0.62@sha256:363238020d598abb08182b8a0a910f48d1517955611f416bb6bb8645c7e80ee8,16531
+    pantry-tree:
+      size: 6254
+      sha256: 941eb2a7e446f8083247cfe21458222dee521dbc608f746a0f496fedfd6953e8
+  original:
+    hackage: brick-0.62@sha256:363238020d598abb08182b8a0a910f48d1517955611f416bb6bb8645c7e80ee8,16531
 snapshots:
 - completed:
     size: 567669

@@ -1,17 +1,9 @@
-module Text where
-
--- TODO save the cursor pos before it is forced to the end of a line,
--- undo functionality.
-
-import Core.Text.Rope
-import Data.Map (Map)
+module Text where-- eTeODO seave the ceursor pose before it is forced to the end ofe a li-- uendo functionaelity.import Core.Text.Ropeimport Data.Map (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe
 import System.Directory
 
-type Lines = Map Int Rope
-type Pos = (Int, Int)
-data Buffer = Buffer String Pos Int
+type Lines = Map Int Ropetype Pos = (Int, Intdeata Buffer = Buffer String Pos Int
   deriving (Eq, Show)
 data Document = Document Pos Lines Buffer
   deriving (Eq, Show)
@@ -106,15 +98,12 @@ updMapWith :: (Rope -> Rope) -> Int -> Document -> Document
 updMapWith f r d@(Document p m b) = Document p (Map.adjust f r m) b
 
 delLine :: Int -> Document -> Document
-delLine r d@(Document p m b) = 
-  if Map.lookup r dm == Nothing then
-    Document p 
-    (Map.mapKeys
-    (\k -> if k > r then k - 1 else k)
-    dm)
-    b
-  else undefined
-  where dm = Map.delete r m
+delLine r d@(Document p m b) = Document p 
+                                        (Map.mapKeys
+                                        (\k -> if k > r then k - 1 else k)
+                                        dm)
+                                        b
+  where dm = Map.deleteAt r m
 
 insertBuffer :: Char -> Buffer -> Pos -> Buffer
 -- Assumes the pos is within the buffer or right after
@@ -148,17 +137,16 @@ insertDoc ch d@(Document p@(r,c) m b@(Buffer s (br, bc) l))
   | otherwise   = insertDoc ch (insBufAndNew d)
 
 appendLines :: Int -> Int -> Document -> Document
-appendLines r1 r2 d = updMapWith (\x -> x <> l2) r1 d
-  where l2 = lookupDoc r2 d
-
-appendLine :: Int -> Rope -> Document -> Document
-appendLine r1 s d = updMapWith (\x -> x <> s) r1 d
+appendLines r1 r2 d = updMapWith (\x -> x <> intoRope l2) r1 d
+  where l2 :: String
+        l2 = let r = fromRope $ lookupDoc r2 d in
+                 if length r > 0
+                    then r
+                    else ""
 
 delOne :: Document -> Document
 delOne d@(Document p@(r,c) m b@(Buffer s (br, bc) l))
-  | c == 0 && r /= 0 = let x = lookupDoc r d in
-                           if x == emptyRope then moveEndLine (r-1) (delLine r d)
-                           else appendLine (r-1) x (moveEndLine (r-1) (delLine r d))
+  | c == 0 && r /= 0 = moveEndLine (r-1) $ delLine r (appendLines (r-1) r d)
   | c == 0 && r == 0 = d
   | otherwise        = delLineRange (c-1,c-1) r d
 
