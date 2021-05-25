@@ -16,11 +16,20 @@ data Document = Document Pos Lines Buffer
   deriving (Eq, Show)
 data Direction = L | R | U | D deriving (Eq, Show)
 
+fromDoc :: Document -> String
+fromDoc = fromRope . (foldMap (\x -> x <> intoRope "\n")) . getLines . insBufAndNew
+
 bufSize :: Int
 bufSize = 10
 
 newBuf :: Pos -> Buffer
 newBuf p = Buffer "" p 0
+
+getLines :: Document -> Lines
+getLines (Document p l b) = l
+
+getCurrRope :: Document -> Rope
+getCurrRope (Document (cr, cc) l b) = fromJust $ Map.lookup cr l
 
 newLines :: Lines
 newLines = Map.fromList [(0, emptyRope)]
@@ -122,3 +131,20 @@ moveDir d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) dir =
                                         if c <= nc
                                           then c
                                           else nc)
+
+docMapKeys :: (Int -> Int) -> Document -> Document
+docMapKeys f (Document p m b) = Document p (Map.mapKeys f m) b
+
+docInsert :: Int -> Rope -> Document -> Document
+docInsert k v (Document p m b) = Document p (Map.insert k v m) b
+
+docInsertWith :: (Rope -> Rope -> Rope) -> Int -> Rope -> Document -> Document
+docInsertWith f k v (Document p m b) = Document p (Map.insertWith f k v m) b
+
+insLine :: Document -> Document
+insLine d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) =
+  docInsertWith const r ol $ docInsert (r+1) nl $
+    docMapKeys 
+      (\x -> if x > r then x + 1 else x) 
+      $ updPosAndBufPos (r+1,0) $ insBufAndNew d
+  where (ol, nl) = splitRope c $ getCurrRope $ insBufAndNew d
