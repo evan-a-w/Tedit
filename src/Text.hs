@@ -1,5 +1,8 @@
 module Text where
 
+-- TODO make enter create a new line and increment all the lines after it.
+-- --   After that its just doing the TUI and undo functionality.
+
 import Core.Text.Rope
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -23,12 +26,15 @@ newLines :: Lines
 newLines = Map.fromList [(0, emptyRope)]
 
 newDoc :: Document
-newDoc = Document 
+newDoc = Document (0,0) newLines (newBuf (0,0))
+
+testDoc2 :: Document
+testDoc2 = Document 
                  (2,0)
                  (Map.fromList [ (0, intoRope "hi my name is")
                                , (1, intoRope "Evan!!")
                                , (2, emptyRope) ])
-                 (newBuf (0,2))
+                 (newBuf (2,0))
 
 testDoc :: Document
 testDoc = Document (0,7) (Map.fromList [(0,intoRope "hi my ")]) (Buffer "n" (0,6) 1)
@@ -40,6 +46,13 @@ insertAt c s i = go s 0
 
 updMapWith :: (Rope -> Rope) -> Int -> Document -> Document
 updMapWith f r d@(Document p m b) = Document p (Map.adjust f r m) b
+
+delLine :: Int -> Document -> Document
+delLine r d@(Document p m b) = Document p 
+                                        (Map.mapKeys
+                                          (\k -> if k > r then k - 1 else k)
+                                          (Map.deleteAt r m))
+                                        b
 
 insertBuffer :: Char -> Buffer -> Pos -> Buffer
 -- Assumes the pos is within the buffer or right after
@@ -72,8 +85,15 @@ insertDoc ch d@(Document p@(r,c) m b@(Buffer s (br, bc) l))
   | l < bufSize = (Document (r,c+1) m (insertBuffer ch b p))
   | otherwise   = insertDoc ch (insBufAndNew d)
 
+appendLines :: Int -> Int -> Document -> Document
+appendLines r1 r2 d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) =
+  updMapWith (\x -> x <> fromJust (Map.lookup r2 m)) r1 d 
+
 delOne :: Document -> Document
-delOne d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) = delLineRange (c-1,c-1) r d
+delOne d@(Document p@(r,c) m b@(Buffer s (br, bc) l))
+  | c == 0 && r /= 0 = delLine r (appendLines (r-1) r (moveDir d U))
+  | c == 0 && r == 0 = d
+  | otherwise        = delLineRange (c-1,c-1) r d
 
 endOfLine :: Document -> Int -> Int
 endOfLine d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) i =
