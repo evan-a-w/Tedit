@@ -1,7 +1,7 @@
 module Text where
 
--- TODO make enter create a new line and increment all the lines after it.
--- --   After that its just doing the TUI and undo functionality.
+-- TODO save the cursor pos before it is forced to the end of a line,
+-- undo functionality.
 
 import Core.Text.Rope
 import Data.Map (Map)
@@ -15,6 +15,34 @@ data Buffer = Buffer String Pos Int
 data Document = Document Pos Lines Buffer
   deriving (Eq, Show)
 data Direction = L | R | U | D deriving (Eq, Show)
+
+getDoc :: [String] -> IO Document
+getDoc args = 
+  if length args == 0
+     then pure newDoc
+     else fileToDoc (head args)
+
+strToDoc :: String -> Document
+strToDoc s =
+  Document
+    (0,0)
+    (snd (foldl (\(i, m) x -> (i+1, Map.insert i (intoRope x) m))
+                (0 :: Int, Map.empty) (splitStr '\n' s)))
+    (newBuf (0,0))
+
+fileToDoc :: String -> IO Document
+fileToDoc s = do
+  str <- readFile s
+  print $ splitStr '\n' str
+  let res = strToDoc str
+  return res
+
+splitStr :: Char -> String -> [String]
+splitStr c s = splitStr' s c ""
+  where splitStr' "" c acc = if acc == "" then [] else [reverse acc]
+        splitStr' (x:xs) c acc = if x == c
+                                   then (reverse acc) : splitStr' xs c ""
+                                   else splitStr' xs c (x:acc)
 
 fromDoc :: Document -> String
 fromDoc = fromRope . (foldMap (\x -> x <> intoRope "\n")) . getLines . insBufAndNew
@@ -146,5 +174,6 @@ insLine d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) =
   docInsertWith const r ol $ docInsert (r+1) nl $
     docMapKeys 
       (\x -> if x > r then x + 1 else x) 
-      $ updPosAndBufPos (r+1,0) $ insBufAndNew d
-  where (ol, nl) = splitRope c $ getCurrRope $ insBufAndNew d
+      $ updPosAndBufPos (r+1,0) nd
+  where nd = insBufAndNew d 
+        (ol, nl) = splitRope c $ getCurrRope nd
