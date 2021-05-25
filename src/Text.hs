@@ -3,6 +3,7 @@ module Text where
 import Core.Text.Rope
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe
 
 type Lines = Map Int Rope
 type Pos = (Int, Int)
@@ -10,6 +11,7 @@ data Buffer = Buffer String Pos Int
   deriving (Eq, Show)
 data Document = Document Pos Lines Buffer
   deriving (Eq, Show)
+data Direction = L | R | U | D deriving (Eq, Show)
 
 bufSize :: Int
 bufSize = 10
@@ -21,7 +23,15 @@ newLines :: Lines
 newLines = Map.fromList [(0, emptyRope)]
 
 newDoc :: Document
-newDoc = Document (0,0) newLines (newBuf (0,0))
+newDoc = Document 
+                 (2,0)
+                 (Map.fromList [ (0, intoRope "hi my name is")
+                               , (1, intoRope "Evan!!")
+                               , (2, emptyRope) ])
+                 (newBuf (0,2))
+
+testDoc :: Document
+testDoc = Document (0,7) (Map.fromList [(0,intoRope "hi my ")]) (Buffer "n" (0,6) 1)
 
 insertAt :: Char -> String -> Int -> String
 insertAt c s i = go s 0
@@ -48,16 +58,47 @@ updPosAndBufPos n@(nr,nc) (Document (r,c) m (Buffer s (br, bc) l)) =
   Document n m (Buffer s n l)
 
 delLineRange :: (Int, Int) -> Int -> Document -> Document
--- Endpoints are inclusive, requires a valid, non trivial interval
+-- Endpoints are inclusive
 delLineRange (ic, ec) r d@(Document p@(dr,dc) m b) = 
   if dr == r && dc >= ic
-    then updPosAndBufPos (dr,dc-(ec-ic)) res
+    then updPosAndBufPos (dr,dc-(ec+1-ic)) res
     else res
   where f :: Rope -> Rope
-        f r = (\(x,y) -> x <> snd (splitRope (ec) y)) $ splitRope ic r
+        f r = (\(x,y) -> x <> snd (splitRope (ec+1-ic) y)) $ splitRope ic r
         res = updMapWith f r (insBufAndNew d)
 
 insertDoc :: Char -> Document -> Document
 insertDoc ch d@(Document p@(r,c) m b@(Buffer s (br, bc) l))
   | l < bufSize = (Document (r,c+1) m (insertBuffer ch b p))
   | otherwise   = insertDoc ch (insBufAndNew d)
+
+delOne :: Document -> Document
+delOne d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) = delLineRange (c-1,c-1) r d
+
+endOfLine :: Document -> Int -> Int
+endOfLine d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) i =
+  widthRope $ fromJust (Map.lookup i m)
+
+moveDir :: Document -> Direction -> Document
+moveDir d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) dir =
+  updPosAndBufPos (nr,nc) nd
+  where nd = insBufAndNew d
+        (nr,nc) = case dir of
+                    L -> if c == 0 
+                           then p
+                           else (r,c-1)
+                    R -> if c == endOfLine nd r
+                           then p
+                           else (r,c+1)
+                    U -> if r == 0
+                           then p
+                           else (r-1, let nc = endOfLine nd (r-1) in
+                                        if c <= nc
+                                          then c
+                                          else nc)
+                    D -> if r == (fst (Map.findMax m))
+                           then p
+                           else (r+1, let nc = endOfLine nd (r+1) in
+                                        if c <= nc
+                                          then c
+                                          else nc)
