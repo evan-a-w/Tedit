@@ -6,7 +6,7 @@ import Brick
 import qualified Graphics.Vty as V
 import Control.Monad.IO.Class
 
-type Name = ()
+data Name = Leno deriving (Ord, Eq)
 
 main :: IO ()
 main = do
@@ -14,15 +14,24 @@ main = do
   doc <- getDoc args
   finalDoc <- defaultMain app doc
   saveNoRes finalDoc
-  putStrLn $ show $ endOfLine finalDoc 1
+  putStrLn $ show $ getSPos finalDoc
+  putStrLn $ show $ getHeight finalDoc
+  putStrLn $ show $ getPos finalDoc
 
 app :: App Document e Name
 app = App { appDraw         = drawUI
           , appChooseCursor = chooseCursor
-          , appHandleEvent  = handleEvent
+          , appHandleEvent  = hEvent
           , appStartEvent   = return
           , appAttrMap      = const theMap
           }
+
+hEvent :: Document -> BrickEvent Name e -> EventM Name (Next Document)
+hEvent d ev = do
+  mExtent <- lookupExtent Leno
+  case mExtent of
+    Nothing -> halt d
+    Just (Extent _ _ (width, height)) -> handleEvent (setHeight height d) ev
 
 handleEvent :: Document -> BrickEvent Name e -> EventM Name (Next Document)
 handleEvent d (VtyEvent (V.EvKey V.KUp []))        = continue $ moveDir d U
@@ -43,7 +52,7 @@ chooseCursor :: Document -> [CursorLocation Name] -> Maybe (CursorLocation Name)
 chooseCursor d cs = Just (head cs)
 
 drawUI :: Document -> [Widget Name]
-drawUI d = [ showCursor () (getCursor d) $ strWrap $ fromDoc d ]
+drawUI d = [ showCursor Leno (getCursor d) $ reportExtent Leno $ strWrap $ fromDoc d ]
 
 textBox :: AttrName
 textBox = attrName "textBox"
@@ -54,4 +63,5 @@ theMap = attrMap V.defAttr
 
 getCursor :: Document -> Location
 getCursor d = Location $ invert $ getPos d
-  where invert (a,b) = (b,a) 
+  where sp = getSPos d 
+        invert (a,b) = (b-sp,a) 

@@ -22,6 +22,11 @@ saveDoc d = do
   writeFile (getDocName d) (fromDoc d)
   return d
 
+printSPos :: Document -> IO Document
+printSPos d = do
+  putStrLn $ show $ getSPos d
+  return d
+
 getDocName :: Document -> String
 getDocName = fromRope . (fromMaybe (intoRope "default.txt")) . (Map.lookup (-1)) . getLines
 
@@ -53,8 +58,8 @@ fileToDoc s = (doesFileExist s) >>= (\x ->
   if x
      then do str <- readFile s
              let res = strToDoc str
-             return (docInsert (-2) (intoRope "0") (docInsert (-1) (intoRope s) res))
-     else return (docInsert (-2) (intoRope "0") (docNamed s)))
+             return (docInsert (-4) (intoRope "0") (docInsert (-3) (intoRope "0") (docInsert (-2) (intoRope "0") (docInsert (-1) (intoRope s) res) )))
+     else return (docNamed s))
 
 splitStr :: Char -> String -> [String]
 splitStr c s = splitStr' s c ""
@@ -64,11 +69,12 @@ splitStr c s = splitStr' s c ""
                                    else splitStr' xs c (x:acc)
 
 fromDoc :: Document -> String
-fromDoc = fromRope . (Map.foldrWithKey (\k x y ->
-                        if k == (-1) || k == (-2)
+fromDoc d = (fromRope . (Map.foldrWithKey (\k x y ->
+                        if k < sp
                           then y
                           else (x <> (intoRope "\n")) <> y) (intoRope ""))
-          . getLines . insBufAndNew
+          . getLines . insBufAndNew) d
+  where sp = getSPos d
 
 bufSize :: Int
 bufSize = 10
@@ -83,7 +89,7 @@ getCurrRope :: Document -> Rope
 getCurrRope (Document (cr, cc) l b) = fromJust $ Map.lookup cr l
 
 newLines :: String -> Lines
-newLines s = Map.fromList [(-1, intoRope s), (0, emptyRope)]
+newLines s = Map.fromList [(-4, intoRope "0"), (-3, intoRope "0"), (-2, intoRope "0"), (-1, intoRope s), (0, emptyRope)]
 
 newDoc :: Document
 newDoc = Document (0,0) (newLines "default.txt") (newBuf (0,0))
@@ -93,12 +99,13 @@ docNamed s = Document (0,0) (newLines s) (newBuf (0,0))
 
 testDoc2 :: Document
 testDoc2 = Document 
-                 (2,0)
+                 (1,0)
                  (Map.fromList [ ((-1), intoRope "test.txt")
                                , (0, intoRope "hi my name is")
                                , (1, intoRope "Evan!!")
                                , (2, emptyRope) ])
-                 (newBuf (2,0))
+                 (newBuf (1,0))
+d2 = moveDir (setSPos 1 (setHeight 1 testDoc2)) D
 
 testDoc :: Document
 testDoc = Document (0,7) (Map.fromList [(0,intoRope "hi my ")]) (Buffer "n" (0,6) 1)
@@ -189,6 +196,22 @@ getHPos (Document p l b) = case Map.lookup (-2) l of
                              Nothing -> 0
                              Just r  -> (read . fromRope) r
 
+setSPos :: Int -> Document -> Document
+setSPos i = docSet (-3) (intoRope $ show i)
+
+setHeight :: Int -> Document -> Document
+setHeight i = docSet (-4) (intoRope $ show i)
+
+getHeight :: Document -> Int
+getHeight (Document p l b) = case Map.lookup (-4) l of
+                             Nothing -> 0
+                             Just r  -> (read . fromRope) r
+
+getSPos :: Document -> Int
+getSPos (Document p l b) = case Map.lookup (-3) l of
+                             Nothing -> 0
+                             Just r  -> (read . fromRope) r
+
 docSet :: Int -> Rope -> Document -> Document
 docSet i r d@(Document p m l) =
   Document 
@@ -207,20 +230,28 @@ moveDir d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) dir =
            else supUpd (r,c+1) nd
     U -> if r == 0
            then nd
-           else updPosAndBufPos 
-                (r-1, let nc = endOfLine nd (r-1) in
-                        if pc <= nc
-                          then pc
-                          else nc) nd
+           else let res = updPosAndBufPos 
+                          (r-1, let nc = endOfLine nd (r-1) in
+                                  if pc <= nc
+                                    then pc
+                                    else nc) nd in
+                  let g = sp in if g == r
+                                     then setSPos (g - 1) res
+                                     else res
     D -> if r == (fst (Map.findMax m))
            then nd
-           else updPosAndBufPos
-                (r+1, let nc = endOfLine nd (r+1) in
-                        if pc <= nc
-                          then pc
-                          else nc) nd
+           else let res =  
+                     updPosAndBufPos
+                     (r+1, let nc = endOfLine nd (r+1) in
+                             if pc <= nc
+                                then pc
+                                else nc) nd in
+                if (r+1) < (getHeight d) - 1
+                   then res
+                   else setSPos (sp + 1) res
   where nd = insBufAndNew d
         pc = getHPos nd
+        sp = getSPos nd
 
 docMapKeys :: (Int -> Int) -> Document -> Document
 docMapKeys f (Document p m b) = Document p (Map.mapKeys f m) b
