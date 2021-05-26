@@ -1,6 +1,6 @@
 module Text where
 
--- TODO save the cursor pos before it is forced to the end of a line,
+-- TODO save the cu	rsor pos before it is forced to the end of a line,
 -- undo functionality.
 
 import Core.Text.Rope
