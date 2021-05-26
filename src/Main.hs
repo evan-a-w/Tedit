@@ -14,9 +14,9 @@ main = do
   doc <- getDoc args
   finalDoc <- defaultMain app doc
   saveNoRes finalDoc
-  putStrLn $ show $ getSPos finalDoc
-  putStrLn $ show $ getHeight finalDoc
-  putStrLn $ show $ getPos finalDoc
+--  putStrLn $ show $ getSPos finalDoc
+--  putStrLn $ show $ getHeight finalDoc
+--  putStrLn $ show $ getPos finalDoc
 
 app :: App Document e Name
 app = App { appDraw         = drawUI
@@ -64,4 +64,4 @@ theMap = attrMap V.defAttr
 getCursor :: Document -> Location
 getCursor d = Location $ invert $ getPos d
   where sp = getSPos d 
-        invert (a,b) = (b-sp,a) 
+        invert (a,b) = (b,a-sp) 

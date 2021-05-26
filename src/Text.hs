@@ -19,7 +19,7 @@ data Direction = L | R | U | D deriving (Eq, Show)
 
 saveDoc :: Document -> IO Document
 saveDoc d = do
-  writeFile (getDocName d) (fromDoc d)
+  writeFile (getDocName d) (fromDocStart d)
   return d
 
 printSPos :: Document -> IO Document
@@ -31,7 +31,7 @@ getDocName :: Document -> String
 getDocName = fromRope . (fromMaybe (intoRope "default.txt")) . (Map.lookup (-1)) . getLines
 
 saveNoRes :: Document -> IO ()
-saveNoRes d = writeFile (getDocName d) (fromDoc d)
+saveNoRes d = writeFile (getDocName d) (fromDocStart d)
 
 posTuple :: Pos -> (Int, Int)
 posTuple (a,b) = (a,b)
@@ -75,6 +75,13 @@ fromDoc d = (fromRope . (Map.foldrWithKey (\k x y ->
                           else (x <> (intoRope "\n")) <> y) (intoRope ""))
           . getLines . insBufAndNew) d
   where sp = getSPos d
+
+fromDocStart :: Document -> String
+fromDocStart d = (fromRope . (Map.foldrWithKey (\k x y ->
+                        if k < 0
+                          then y
+                          else (x <> (intoRope "\n")) <> y) (intoRope ""))
+          . getLines . insBufAndNew) d
 
 bufSize :: Int
 bufSize = 10
@@ -246,7 +253,7 @@ moveDir d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) dir =
                              if pc <= nc
                                 then pc
                                 else nc) nd in
-                if (r+1) < (getHeight d) - 1
+                if (r+1) < (getHeight d)
                    then res
                    else setSPos (sp + 1) res
   where nd = insBufAndNew d
