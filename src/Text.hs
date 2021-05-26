@@ -28,6 +28,12 @@ getDocName = fromRope . (fromMaybe (intoRope "default.txt")) . (Map.lookup (-1))
 saveNoRes :: Document -> IO ()
 saveNoRes d = writeFile (getDocName d) (fromDoc d)
 
+posTuple :: Pos -> (Int, Int)
+posTuple (a,b) = (a,b)
+
+getPos :: Document -> (Int, Int)
+getPos (Document p l b) = posTuple p
+
 getDoc :: [String] -> IO Document
 getDoc args = 
   if length args == 0
@@ -47,8 +53,8 @@ fileToDoc s = (doesFileExist s) >>= (\x ->
   if x
      then do str <- readFile s
              let res = strToDoc str
-             return (docInsert (-1) (intoRope s) res)
-     else return (docNamed s))
+             return (docInsert (-2) (intoRope "0") (docInsert (-1) (intoRope s) res))
+     else return (docInsert (-2) (intoRope "0") (docNamed s)))
 
 splitStr :: Char -> String -> [String]
 splitStr c s = splitStr' s c ""
@@ -59,7 +65,7 @@ splitStr c s = splitStr' s c ""
 
 fromDoc :: Document -> String
 fromDoc = fromRope . (Map.foldrWithKey (\k x y ->
-                       if k == (-1)
+                        if k == (-1) || k == (-2)
                           then y
                           else (x <> (intoRope "\n")) <> y) (intoRope ""))
           . getLines . insBufAndNew
@@ -132,6 +138,10 @@ updPosAndBufPos :: (Int, Int) -> Document -> Document
 updPosAndBufPos n@(nr,nc) (Document (r,c) m (Buffer s (br, bc) l)) =
   Document n m (Buffer s n l)
 
+supUpd :: (Int, Int) -> Document -> Document
+supUpd n@(nr,nc) (Document (r,c) m (Buffer s (br, bc) l)) =
+  setHPos nc (Document n m (Buffer s n l))
+
 delLineRange :: (Int, Int) -> Int -> Document -> Document
 -- Endpoints are inclusive
 delLineRange (ic, ec) r d@(Document p@(dr,dc) m b) = 
@@ -171,29 +181,46 @@ moveEndLine r d = updPosAndBufPos (r, nc) nd
   where nd = insBufAndNew d
         nc = endOfLine nd r
 
+setHPos :: Int -> Document -> Document
+setHPos i = docSet (-2) (intoRope $ show i)
+
+getHPos :: Document -> Int
+getHPos (Document p l b) = case Map.lookup (-2) l of
+                             Nothing -> 0
+                             Just r  -> (read . fromRope) r
+
+docSet :: Int -> Rope -> Document -> Document
+docSet i r d@(Document p m l) =
+  Document 
+    p
+    (Map.alter (const (Just r)) i m)
+    l
+
 moveDir :: Document -> Direction -> Document
 moveDir d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) dir =
-  updPosAndBufPos (nr,nc) nd
+  case dir of
+    L -> if c == 0 
+           then nd
+           else supUpd (r,c-1) nd
+    R -> if c == endOfLine nd r
+           then nd
+           else supUpd (r,c+1) nd
+    U -> if r == 0
+           then nd
+           else updPosAndBufPos 
+                (r-1, let nc = endOfLine nd (r-1) in
+                        if pc <= nc
+                          then pc
+                          else nc) nd
+    D -> if r == (fst (Map.findMax m))
+           then nd
+           else updPosAndBufPos
+                (r+1, let nc = endOfLine nd (r+1) in
+                        if pc <= nc
+                          then pc
+                          else nc) nd
   where nd = insBufAndNew d
-        (nr,nc) = case dir of
-                    L -> if c == 0 
-                           then p
-                           else (r,c-1)
-                    R -> if c == endOfLine nd r
-                           then p
-                           else (r,c+1)
-                    U -> if r == 0
-                           then p
-                           else (r-1, let nc = endOfLine nd (r-1) in
-                                        if c <= nc
-                                          then c
-                                          else nc)
-                    D -> if r == (fst (Map.findMax m))
-                           then p
-                           else (r+1, let nc = endOfLine nd (r+1) in
-                                        if c <= nc
-                                          then c
-                                          else nc)
+        pc = getHPos nd
 
 docMapKeys :: (Int -> Int) -> Document -> Document
 docMapKeys f (Document p m b) = Document p (Map.mapKeys f m) b

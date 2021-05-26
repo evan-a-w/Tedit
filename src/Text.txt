@@ -1,15 +1,21 @@
-module Text where-- eTeODO seave the ceursor pose before it is forced to the end ofe a li-- uendo functionaelity.import Core.Text.Ropeimport Data.Map (Map)
+module Text where
+
+-- TODO save the cursor pos before it is forced to the end of a line,
+-- undo functionality.
+
+import Core.Text.Rope
+import Data.Map (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe
 import System.Directory
 
-type Lines = Map Int Ropetype Pos = (Int, Intdeata Buffer = Buffer String Pos Int
+type Lines = Map Int Rope
+type Pos = (Int, Int)
+data Buffer = Buffer String Pos Int
   deriving (Eq, Show)
 data Document = Document Pos Lines Buffer
   deriving (Eq, Show)
-data Direction = L | R | U | D deriving (Eq, Show)
-
-saveDoc :: Document -> IO Document
+data Direction = L | R Ue | D deriving (Eq, Show)saveDoc :: Document -> IO Document
 saveDoc d = do
   writeFile (getDocName d) (fromDoc d)
   return d
@@ -19,6 +25,12 @@ getDocName = fromRope . (fromMaybe (intoRope "default.txt")) . (Map.lookup (-1))
 
 saveNoRes :: Document -> IO ()
 saveNoRes d = writeFile (getDocName d) (fromDoc d)
+
+posTuple :: Pos -> (Int, Int)
+posTuple (a,b) = (a,b)
+
+getPos :: Document -> (Int, Int)
+getPos (Document p l b) = posTuple p
 
 getDoc :: [String] -> IO Document
 getDoc args = 
@@ -51,7 +63,7 @@ splitStr c s = splitStr' s c ""
 
 fromDoc :: Document -> String
 fromDoc = fromRope . (Map.foldrWithKey (\k x y ->
-                       if k == (-1)
+                        if k == (-1) || k == (-2)
                           then y
                           else (x <> (intoRope "\n")) <> y) (intoRope ""))
           . getLines . insBufAndNew
@@ -98,12 +110,15 @@ updMapWith :: (Rope -> Rope) -> Int -> Document -> Document
 updMapWith f r d@(Document p m b) = Document p (Map.adjust f r m) b
 
 delLine :: Int -> Document -> Document
-delLine r d@(Document p m b) = Document p 
-                                        (Map.mapKeys
-                                        (\k -> if k > r then k - 1 else k)
-                                        dm)
-                                        b
-  where dm = Map.deleteAt r m
+delLine r d@(Document p m b) = 
+  if Map.lookup r dm == Nothing then
+    Document p 
+    (Map.mapKeys
+    (\k -> if k > r then k - 1 else k)
+    dm)
+    b
+  else undefined
+  where dm = Map.delete r m
 
 insertBuffer :: Char -> Buffer -> Pos -> Buffer
 -- Assumes the pos is within the buffer or right after
@@ -121,6 +136,10 @@ updPosAndBufPos :: (Int, Int) -> Document -> Document
 updPosAndBufPos n@(nr,nc) (Document (r,c) m (Buffer s (br, bc) l)) =
   Document n m (Buffer s n l)
 
+supUpd :: (Int, Int) -> Document -> Document
+supUpd n@(nr,nc) (Document (r,c) m (Buffer s (br, bc) l)) =
+  setHPos nc (Document n m (Buffer s n l))
+
 delLineRange :: (Int, Int) -> Int -> Document -> Document
 -- Endpoints are inclusive
 delLineRange (ic, ec) r d@(Document p@(dr,dc) m b) = 
@@ -137,16 +156,17 @@ insertDoc ch d@(Document p@(r,c) m b@(Buffer s (br, bc) l))
   | otherwise   = insertDoc ch (insBufAndNew d)
 
 appendLines :: Int -> Int -> Document -> Document
-appendLines r1 r2 d = updMapWith (\x -> x <> intoRope l2) r1 d
-  where l2 :: String
-        l2 = let r = fromRope $ lookupDoc r2 d in
-                 if length r > 0
-                    then r
-                    else ""
+appendLines r1 r2 d = updMapWith (\x -> x <> l2) r1 d
+  where l2 = lookupDoc r2 d
+
+appendLine :: Int -> Rope -> Document -> Document
+appendLine r1 s d = updMapWith (\x -> x <> s) r1 d
 
 delOne :: Document -> Document
 delOne d@(Document p@(r,c) m b@(Buffer s (br, bc) l))
-  | c == 0 && r /= 0 = moveEndLine (r-1) $ delLine r (appendLines (r-1) r d)
+  | c == 0 && r /= 0 = let x = lookupDoc r d in
+                           if x == emptyRope then moveEndLine (r-1) (delLine r d)
+                           else appendLine (r-1) x (moveEndLine (r-1) (delLine r d))
   | c == 0 && r == 0 = d
   | otherwise        = delLineRange (c-1,c-1) r d
 
@@ -159,29 +179,46 @@ moveEndLine r d = updPosAndBufPos (r, nc) nd
   where nd = insBufAndNew d
         nc = endOfLine nd r
 
+setHPos :: Int -> Document -> Document
+setHPos i = docSet (-2) (intoRope $ show i)
+
+getHPos :: Document -> Int
+getHPos (Document p l b) = case Map.lookup (-2) l of
+                             Nothing -> 0
+                             Just r  -> (read . fromRope) r
+
+docSet :: Int -> Rope -> Document -> Document
+docSet i r d@(Document p m l) =
+  Document 
+    p
+    (Map.alter (const (Just r)) i m)
+    l
+
 moveDir :: Document -> Direction -> Document
 moveDir d@(Document p@(r,c) m b@(Buffer s (br, bc) l)) dir =
-  updPosAndBufPos (nr,nc) nd
+  case dir of
+    L -> if c == 0 
+           then nd
+           else supUpd (r,c-1) nd
+    R -> if c == endOfLine nd r
+           then nd
+           else supUpd (r,c+1) nd
+    U -> if r == 0
+           then nd
+           else updPosAndBufPos 
+                (r-1, let nc = endOfLine nd (r-1) in
+                        if pc <= nc
+                          then pc
+                          else nc) nd
+    D -> if r == (fst (Map.findMax m))
+           then nd
+           else updPosAndBufPos
+                (r+1, let nc = endOfLine nd (r+1) in
+                        if pc <= nc
+                          then nc
+                          else pc) nd
   where nd = insBufAndNew d
-        (nr,nc) = case dir of
-                    L -> if c == 0 
-                           then p
-                           else (r,c-1)
-                    R -> if c == endOfLine nd r
-                           then p
-                           else (r,c+1)
-                    U -> if r == 0
-                           then p
-                           else (r-1, let nc = endOfLine nd (r-1) in
-                                        if c <= nc
-                                          then c
-                                          else nc)
-                    D -> if r == (fst (Map.findMax m))
-                           then p
-                           else (r+1, let nc = endOfLine nd (r+1) in
-                                        if c <= nc
-                                          then c
-                                          else nc)
+        pc = getHPos nd
 
 docMapKeys :: (Int -> Int) -> Document -> Document
 docMapKeys f (Document p m b) = Document p (Map.mapKeys f m) b
