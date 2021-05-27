@@ -74,12 +74,14 @@ splitStr c s = splitStr' s c ""
                                    else splitStr' xs c (x:acc)
 
 fromDoc :: Document -> String
-fromDoc d = (fromRope . (Map.foldrWithKey (\k x y ->
-                        if k < sp
-                          then y
-                          else (x <> (intoRope "\n")) <> y) (intoRope ""))
-          . getLines . insBufAndNew) d
+fromDoc d = fromRope $ intoRope "Document name: " <> long (lookupDoc (-1) nd) <> mText
   where sp = getSPos d
+        nd = insBufAndNew d
+        mText = Map.foldrWithKey (\k x y -> if k < sp
+                                               then y
+                                               else (x <> (intoRope "\n")) <> y)
+               (intoRope "") $ getLines nd
+        long rope = rope <> intoRope (take 1000 $ repeat ' ') <> intoRope "\n" 
 
 fromDocStart :: Document -> String
 fromDocStart d = (fromRope . (Map.foldrWithKey (\k x y ->

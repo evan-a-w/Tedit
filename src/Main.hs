@@ -65,8 +65,7 @@ getCursor :: Document -> Location
 getCursor d = Location $ let (c, r) = invert $ getPos d 
                              width = getWidth d in
                              if width == 0 then (0, r) else
-                             if c >= width - 1
-                                then (width - 1, r)
+                             if c >= width-1
+                                then (width-1, r)
                                 else (c, r)
-  where sp = getSPos d 
-        invert (a,b) = (b,a-sp) 
+  where invert (a,b) = (b,1+a-getSPos d) 
