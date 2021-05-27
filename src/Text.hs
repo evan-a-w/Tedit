@@ -1,7 +1,6 @@
 module Text where
 
--- TODO save the cursor pos before it is forced to the end of a line,
--- undo functionality.
+-- TODO undo functionality, proper text wrapping without bugs
 
 import Core.Text.Rope
 import Data.Map (Map)
@@ -53,12 +52,18 @@ strToDoc s =
                 (0 :: Int, Map.empty) (splitStr '\n' s)))
     (newBuf (0,0))
 
+unionDoc :: Document -> Lines -> Document
+unionDoc (Document p l b) l2 =
+  Document p
+           (Map.unionWith const l l2)
+           b
+
 fileToDoc :: String -> IO Document
 fileToDoc s = (doesFileExist s) >>= (\x ->
   if x
      then do str <- readFile s
              let res = strToDoc str
-             return (docInsert (-4) (intoRope "0") (docInsert (-3) (intoRope "0") (docInsert (-2) (intoRope "0") (docInsert (-1) (intoRope s) res) )))
+             return $ unionDoc res $ defaultLines s
      else return (docNamed s))
 
 splitStr :: Char -> String -> [String]
@@ -95,8 +100,11 @@ getLines (Document p l b) = l
 getCurrRope :: Document -> Rope
 getCurrRope (Document (cr, cc) l b) = fromJust $ Map.lookup cr l
 
+defaultLines :: String -> Lines
+defaultLines s = Map.fromList [(-5, intoRope "0"), (-4, intoRope "0"), (-3, intoRope "0"), (-2, intoRope "0"), (-1, intoRope s)]
+
 newLines :: String -> Lines
-newLines s = Map.fromList [(-4, intoRope "0"), (-3, intoRope "0"), (-2, intoRope "0"), (-1, intoRope s), (0, emptyRope)]
+newLines s = Map.fromList [(-5, intoRope "0"), (-4, intoRope "0"), (-3, intoRope "0"), (-2, intoRope "0"), (-1, intoRope s), (0, emptyRope)]
 
 newDoc :: Document
 newDoc = Document (0,0) (newLines "default.txt") (newBuf (0,0))
@@ -213,6 +221,17 @@ getHeight :: Document -> Int
 getHeight (Document p l b) = case Map.lookup (-4) l of
                              Nothing -> 0
                              Just r  -> (read . fromRope) r
+
+setWidth :: Int -> Document -> Document
+setWidth i = docSet (-5) (intoRope $ show i)
+
+getWidth :: Document -> Int
+getWidth (Document p l b) = case Map.lookup (-5) l of
+                             Nothing -> 0
+                             Just r  -> (read . fromRope) r
+
+setHW :: (Int, Int) -> Document -> Document
+setHW (h, w) d = setWidth w $ setHeight h d
 
 getSPos :: Document -> Int
 getSPos (Document p l b) = case Map.lookup (-3) l of

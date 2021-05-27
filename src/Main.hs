@@ -14,9 +14,9 @@ main = do
   doc <- getDoc args
   finalDoc <- defaultMain app doc
   saveNoRes finalDoc
---  putStrLn $ show $ getSPos finalDoc
---  putStrLn $ show $ getHeight finalDoc
---  putStrLn $ show $ getPos finalDoc
+  putStrLn $ show $ getSPos finalDoc
+  putStrLn $ show $ getWidth finalDoc
+  putStrLn $ show $ getPos finalDoc
 
 app :: App Document e Name
 app = App { appDraw         = drawUI
@@ -31,7 +31,7 @@ hEvent d ev = do
   mExtent <- lookupExtent Leno
   case mExtent of
     Nothing -> halt d
-    Just (Extent _ _ (width, height)) -> handleEvent (setHeight height d) ev
+    Just (Extent _ _ (width, height)) -> handleEvent (setHW (height, width) d) ev
 
 handleEvent :: Document -> BrickEvent Name e -> EventM Name (Next Document)
 handleEvent d (VtyEvent (V.EvKey V.KUp []))        = continue $ moveDir d U
@@ -52,7 +52,7 @@ chooseCursor :: Document -> [CursorLocation Name] -> Maybe (CursorLocation Name)
 chooseCursor d cs = Just (head cs)
 
 drawUI :: Document -> [Widget Name]
-drawUI d = [ showCursor Leno (getCursor d) $ reportExtent Leno $ strWrap $ fromDoc d ]
+drawUI d = [ showCursor Leno (getCursor d) $ reportExtent Leno $ str $ fromDoc d ]
 
 textBox :: AttrName
 textBox = attrName "textBox"
@@ -62,6 +62,11 @@ theMap = attrMap V.defAttr
   [ (textBox, V.defAttr) ]
 
 getCursor :: Document -> Location
-getCursor d = Location $ invert $ getPos d
+getCursor d = Location $ let (c, r) = invert $ getPos d 
+                             width = getWidth d in
+                             if width == 0 then (0, r) else
+                             if c >= width - 1
+                                then (width - 1, r)
+                                else (c, r)
   where sp = getSPos d 
         invert (a,b) = (b,a-sp) 
